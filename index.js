@@ -53,7 +53,7 @@ const server = http.createServer(async (req, res) => {
     // 根路由，用于健康检查
     if (pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
-        res.end('App Engine Proxy Server is running. Use /proxy?url=... to make a request.')
+        res.end('hello world!')
         return
     }
 
