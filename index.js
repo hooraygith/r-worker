@@ -1,6 +1,6 @@
 import http from 'http'
 import { URL } from 'url'
-// 从 'stream' 模块导入 Readable 类
+import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
 
 const PORT = process.env.PORT || 8080
@@ -47,8 +47,8 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/proxy') {
         const targetUrl = requestUrl.searchParams.get('url')
         if (!targetUrl) {
-            res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' })
-            res.end('缺少 "url" 查询参数')
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+            res.end('Not found')
             return
         }
 
@@ -58,18 +58,13 @@ const server = http.createServer(async (req, res) => {
             const response = await customFetch(targetUrl)
             res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
 
-            // *** 这是修改的关键 ***
-            // 1. 将 Web Stream (response.body) 转换为 Node.js Stream
             const nodeStream = Readable.fromWeb(response.body)
-            // 2. 现在可以安全地使用 .pipe() 了
-            nodeStream.pipe(res)
+            await pipeline(nodeStream, res)
 
         } catch (error) {
             console.error('处理代理请求时出错:', error)
-            if (!res.headersSent) {
-                res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' })
-            }
-            res.end('代理请求失败: ' + error.message)
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+            res.end('Not found')
         }
         return
     }
