@@ -1,6 +1,6 @@
 import http from 'http'
 import { URL } from 'url'
-import { pipeline } from 'stream/promises'
+// 从 'stream' 模块导入 Readable 类
 import { Readable } from 'stream'
 
 const PORT = process.env.PORT || 8080
@@ -58,13 +58,24 @@ const server = http.createServer(async (req, res) => {
             const response = await customFetch(targetUrl)
             res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
 
+            // *** 这是修改的关键 ***
+            // 1. 将 Web Stream (response.body) 转换为 Node.js Stream
             const nodeStream = Readable.fromWeb(response.body)
-            await pipeline(nodeStream, res)
+
+            res.on('close', () => {
+                console.log('客户端连接已关闭，正在销毁源数据流...')
+                nodeStream.destroy()
+            })
+
+            // 2. 现在可以安全地使用 .pipe() 了
+            nodeStream.pipe(res)
 
         } catch (error) {
             console.error('处理代理请求时出错:', error)
-            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
-            res.end('Not found')
+            if (!res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' })
+            }
+            res.end('代理请求失败: ' + error.message)
         }
         return
     }
